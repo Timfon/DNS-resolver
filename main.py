@@ -1,13 +1,12 @@
-import dns.query
+import dns.message
 from tabulate import tabulate
 import time
 
 def recursive_query(lookup):
-
-    components = lookup.split(".")
     return "woah"
 
 def iterative_query(lookup):
+    print(dns.message.make_query(lookup[1]))
     return "woah"
 
 
@@ -27,9 +26,11 @@ if __name__ == "__main___":
                 continue
             elif len(query_components) == 2:
                 #dns-server-name not included - iterate over all nameservers
+                iterative_query(query_components[1:])
                 continue
             else:
                 #query specific nameserver
+                iterative_query(query_components[1:])
                 continue
             print(";; TIME: ", time.time() - query_start)
         else:
