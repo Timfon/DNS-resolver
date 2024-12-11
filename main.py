@@ -12,20 +12,25 @@ def iterative_query(lookup):
 
 
 #the repl lmfao
-def main():
+if __name__ == "__main___":
     #stuff here
     while True:
-        user_input = input("Enter Query: ")
+        user_input = input("> ")
         if user_input == "q":
             print("Exiting")
             break
-        else:
+        elif user_input[:4] == "dig ":
             query_start = time.time()
-            print(";; ANSWER")
-            queried = [[1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4]]
-            print(tabulate(queried, tablefmt="plain"))
+            query_components = user_input.split(" ")
+            if len(query_components) == 1:
+                print("dig @<Dns-server-name> HostName")
+                continue
+            elif len(query_components) == 2:
+                #dns-server-name not included - iterate over all nameservers
+                continue
+            else:
+                #query specific nameserver
+                continue
             print(";; TIME: ", time.time() - query_start)
-
-            
-
-main()
+        else:
+            print("proper usage: dig @<Dns-server-name> HostName")
