@@ -1,15 +1,8 @@
 import dns.message
+import dns.query
 from tabulate import tabulate
 import time
 
-def recursive_query(lookup):
-    return "woah"
-
-def iterative_query(lookup):
-    print(dns.message.make_query(lookup[1]))
-    return "woah"
-
-#root servers as of dec 11, 2024
 ROOT_SERVERS = ( "198.41.0.4", 
                  "170.247.170.2", 
                  "192.33.4.12", 
@@ -24,8 +17,18 @@ ROOT_SERVERS = ( "198.41.0.4",
                  "199.7.83.42", 
                  "202.12.27.33")
 
+def recursive_query(lookup):
+    return "woah"
+
+def iterative_query(lookup, server):
+    query = dns.message.make_query(lookup, "A")
+    udp = dns.query.udp(query, server, timeout = 2)
+    print(udp)
+    return "woah"
+
+
 #the repl lmfao
-if __name__ == "__main___":
+if __name__ == "__main__":
     #stuff here
     while True:
         user_input = input("> ")
@@ -40,11 +43,12 @@ if __name__ == "__main___":
                 continue
             elif len(query_components) == 2:
                 #dns-server-name not included - iterate over all nameservers
-                iterative_query(query_components[1:])
+                for server in ROOT_SERVERS:
+                    iterative_query(query_components[1], server)
                 continue
             else:
                 #query specific nameserver
-                iterative_query(query_components[1:])
+                #iterative_query(query_components[1:])
                 continue
             print(";; TIME: ", time.time() - query_start)
         else:
