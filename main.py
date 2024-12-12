@@ -20,12 +20,27 @@ ROOT_SERVERS = ( "198.41.0.4",
 def recursive_query(lookup):
     return "woah"
 
-def iterative_query(lookup, server):
+def domain_lookup(lookup, server):
     query = dns.message.make_query(lookup, "A")
     udp = dns.query.udp(query, server, timeout = 2)
-    print(udp)
-    return "woah"
+    return udp
 
+def recursive_query(lookup, servers = ROOT_SERVERS):
+    answers = []
+    next_servers = []
+    for server in servers:
+        response = domain_lookup(lookup, server)
+        if response.answer:
+            return response.answer
+        if response.additional:
+            for add in response.additional:
+                for rr in add:
+                    if rr.rdtype == dns.rdatatype.A:
+                        next_servers.append(str(rr.address))
+    if next_servers:
+        return recursive_query(lookup, next_servers) 
+    else:
+        raise Exception("No servers available for resolution") 
 
 #the repl lmfao
 if __name__ == "__main__":
@@ -43,8 +58,7 @@ if __name__ == "__main__":
                 continue
             elif len(query_components) == 2:
                 #dns-server-name not included - iterate over all nameservers
-                for server in ROOT_SERVERS:
-                    iterative_query(query_components[1], server)
+                recursive_query(query_components[1])
                 continue
             else:
                 #query specific nameserver
