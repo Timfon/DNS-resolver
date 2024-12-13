@@ -1,6 +1,6 @@
 # DNS Query Tool
 
-A Python-based DNS query tool that allows you to perform different types of DNS queries (recursive, iterative, and single-step) to explore how DNS resolution works. This tool provides functionality similar to the `dig` command but with more verbose output.
+A Python-based DNS query tool that allows you to perform different types of DNS queries (recursive, iterative, and single-step). This tool provides functionality similar to the `dig` command but with more verbose output.
 
 ## Features
 
