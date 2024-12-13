@@ -24,7 +24,7 @@ A Python-based DNS query tool that allows you to perform different types of DNS 
 pip install dnspython
 ```
 
-2. Save the script to a file (e.g., `dns_tool.py`)
+2. Save the script to a file (e.g., `main.py`)
 
 ## Usage
 
