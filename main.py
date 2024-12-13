@@ -142,10 +142,13 @@ def recursive_query(domain, server):
 def print_usage():
     """Print usage instructions."""
     print("\nUsage:")
-    print("  dig <domain>                    - Full iterative query from root")
+    print("  dig <domain>                    - Full recursive query from default root server 198.41.0.4")
+    print("  dig <domain> -i                 - Full iterative query from default root server 198.41.0.4")
+    print("  dig @<server> <domain> -r       - Full recursive query from specific server")
+    print("  dig @<server> <domain> -i       - Full iterative query from specific server")
     print("  dig @<server> <domain>          - Single step query to specific server")
-    print("  dig @<server> <domain> -r       - Recursive query from specific server")
     print("  q                               - Quit the program")
+    print("  ls                              - List the 13 root servers")
 
 if __name__ == "__main__":
     print_usage()
@@ -161,12 +164,19 @@ if __name__ == "__main__":
             if len(query_components) == 2:
                 # Full iterative query from root
                 domain = query_components[1]
+                #default is the first root server for now
+                recursive_query(domain, ROOT_SERVERS[0])
+            elif len(query_components) == 3 and query_components[2] == "-i":
+                # Full iterative query from root
+                domain = query_components[1]
                 full_iterative_query(domain, ROOT_SERVERS[0])
             elif len(query_components) >= 3 and query_components[1].startswith("@"):
                 server = query_components[1][1:]  # remove @
                 domain = query_components[2]
-                
-                if len(query_components) == 4 and query_components[3] == "-r":
+                if len(query_components) == 4 and query_components[3] == "-i":
+                    # Recursive query from specific server
+                    full_iterative_query(domain, server)
+                elif len(query_components) == 4 and query_components[3] == "-r":
                     # Recursive query from specific server
                     recursive_query(domain, server)
                 else:
@@ -176,5 +186,9 @@ if __name__ == "__main__":
                 print_usage()
                 continue
             print(f";; Query time: {time.time() - query_start:.3f} seconds")
+        elif user_input.strip().lower() == "ls":
+            print("Root servers:")
+            for server in ROOT_SERVERS:
+                print(f"  {server}")
         else:
             print_usage()
