@@ -20,25 +20,45 @@ ROOT_SERVERS = (
     "202.12.27.33",
 )
 
-def get_next_nameserver(response):
+class cache_item:
+    def __init__(self, answer):
+        self.ans = answer
+        self.time = time.time()
+
+domain_cache = {}
+
+def cache_answer(domain, answer):
+    domain_cache[domain] = cache_item(answer)
+    return None
+
+def check_cache(domain):
+    if domain in domain_cache:
+        for rrset in domain_cache[domain].ans:
+            if rrset.ttl < time.time() - domain_cache[domain].time:
+                del domain_cache[domain]
+                return None
+        return domain_cache[domain].ans
+    return None
+
+def get_next_nameservers(response):
     """Extract next nameserver IP from response."""
     if response.additional:
-        for rrset in response.additional:
-            if rrset.rdtype == dns.rdatatype.A:
-                return str(rrset[0])
+        return [str(rr) for rrset in response.additional for rr in rrset if rr.rdtype == dns.rdatatype.A]
     
     if response.authority:
-        for rrset in response.authority:
-            if rrset.rdtype == dns.rdatatype.NS:
-                try:
-                    ns_name = str(rrset[0])
-                    resolver = dns.resolver.Resolver()
-                    resolver.timeout = 2
-                    answers = resolver.resolve(ns_name, 'A')
-                    return str(answers[0])
-                except Exception as e:
-                    print(f"Error resolving NS record: {e}")
-                    continue
+        names = [str(rr.target) for rrset in response.authority for rr in rrset if rr.rdtype == dns.rdatatype.A]
+        search_ip = []
+        for name in names:
+            try:
+                resolver = dns.resolver.Resolver()
+                resolver.timeout = 2
+                answers = resolver.resolve(name, 'A')
+                for answer in answers:
+                    search_ip.append(str(answer.address))
+            except Exception as e:
+                print(f"Error resolving NS record: {e}")
+                continue
+        return search_ip
     return None
 
 def single_step_query(domain, server):
@@ -51,8 +71,10 @@ def single_step_query(domain, server):
         
         if response.answer:
             print("\nAnswer section:")
+            cache_answer(query, response.answer)
             for rrset in response.answer:
                 print(rrset)
+            
         
         if response.authority:
             print("\nAuthority section:")
@@ -70,74 +92,96 @@ def single_step_query(domain, server):
         print(f"Error querying {server}: {e}")
         return None
 
-def full_iterative_query(domain, start_server):
+def full_iterative_query(domain, start_servers = ROOT_SERVERS):
     """Perform a full iterative DNS query, showing all steps."""
     print(f"\nStarting iterative resolution for {domain}")
-    print(f"Step 1: Querying root server {start_server}")
+    print(f"Step 1: Querying root servers")
     
-    current_server = start_server
+    current_servers = start_servers
     step = 1
+
+    cache_check = check_cache(domain)
+
+    if cache_check:
+        print("Got cached answer:")
+        for rrset in cache_check:
+            for rr in rrset:
+                print(rrset.name, " ", int(rrset.ttl - (time.time() - domain_cache[domain].time))," IN A ", rr.address)
+        return
     
     while True:
-        print(f"\nQuerying server: {current_server}")
-        query = dns.message.make_query(domain, "A")
-        
-        try:
-            response = dns.query.udp(query, current_server, timeout=2)
-            
+        for server in current_servers:
+            print(f"\nQuerying server: {server}")         
+            try:
+                response = dns_query(server, domain)  
+                if response.answer:
+                    print("Got final answer:")
+                    for rrset in response.answer:
+                        print(rrset)
+                    cache_answer(domain, response.answer)
+                    return response
+                
+                if response.authority:
+                    print("Authority section:")
+                    for rrset in response.authority:
+                        print(rrset)
+                
+                if response.additional:
+                    print("Additional section:")
+                    for rrset in response.additional:
+                        print(rrset)
+                
+                next_servers = get_next_nameservers(response)
+                if next_servers:
+                    step += 1
+                    print(f"\nStep {step}: Following referral to {next_servers}")
+                    current_servers = next_servers
+                    break
+                else:
+                    print("No next nameserver found in referral")
+                    
+            except Exception as e:
+                print(f"Error querying {server}: {e}")
+                return None
+def dns_query(server, domain):
+    query = dns.message.make_query(domain, "A")
+    response = dns.query.udp(query, server, timeout=2)
+    return response
+
+def recursive_query(domain, servers):
+    """Perform a recursive DNS query."""
+
+    cache_check = check_cache(domain)
+
+    if cache_check:
+        print("Got cached answer:")
+        for rrset in cache_check:
+            for rr in rrset:
+                print(rrset.name, " ", int(rrset.ttl - (time.time() - domain_cache[domain].time))," IN A ", rr.address)
+        return
+    for server in servers:
+        print(f"Recursively querying {server} for {domain}")
+        try:           
+            response = dns_query(server, domain)
             if response.answer:
-                print("Got final answer:")
-                for rrset in response.answer:
-                    print(rrset)
+                print("Answer section:")
+                for rr in response.answer:
+                    print(rr)
+                cache_answer(domain, response.answer)
                 return response
             
-            if response.authority:
-                print("Authority section:")
-                for rrset in response.authority:
-                    print(rrset)
-            
-            if response.additional:
-                print("Additional section:")
-                for rrset in response.additional:
-                    print(rrset)
-            
-            next_server = get_next_nameserver(response)
-            if next_server:
-                step += 1
-                print(f"\nStep {step}: Following referral to {next_server}")
-                current_server = next_server
+            next_servers = get_next_nameservers(response)
+            if next_servers:
+                recursion =  recursive_query(domain, next_servers)
+                if recursion:
+                    return recursion
             else:
-                print("No next nameserver found in referral")
+                print("No next nameservers found in referral")
                 return None
                 
         except Exception as e:
-            print(f"Error querying {current_server}: {e}")
+            print(f"Error during recursive query: {e}")
             return None
-
-def recursive_query(domain, server):
-    """Perform a recursive DNS query."""
-    print(f"Recursively querying {server} for {domain}")
-    query = dns.message.make_query(domain, "A")
-    try:
-        response = dns.query.udp(query, server, timeout=2)
-        
-        if response.answer:
-            print("Answer section:")
-            for rr in response.answer:
-                print(rr)
-            return response
-        
-        next_server = get_next_nameserver(response)
-        if next_server:
-            print(f"Following referral to {next_server}")
-            return recursive_query(domain, next_server)
-        else:
-            print("No next nameserver found in referral")
-            return None
-            
-    except Exception as e:
-        print(f"Error during recursive query: {e}")
-        return None
 
 def print_usage():
     """Print usage instructions."""
@@ -165,20 +209,20 @@ if __name__ == "__main__":
                 # Full iterative query from root
                 domain = query_components[1]
                 #Default is the first root server for now
-                recursive_query(domain, ROOT_SERVERS[0])
+                recursive_query(domain, ROOT_SERVERS)
             elif len(query_components) == 3 and query_components[2] == "-i":
                 # Full iterative query from root
                 domain = query_components[1]
-                full_iterative_query(domain, ROOT_SERVERS[0])
+                full_iterative_query(domain, ROOT_SERVERS)
             elif len(query_components) >= 3 and query_components[2].startswith("@"):
                 server = query_components[2][1:]  # remove @
                 domain = query_components[1]
                 if len(query_components) == 4 and query_components[3] == "-i":
                     # Recursive query from specific server
-                    full_iterative_query(domain, server)
+                    full_iterative_query(domain, [server])
                 elif len(query_components) == 4 and query_components[3] == "-r":
                     # Recursive query from specific server
-                    recursive_query(domain, server)
+                    recursive_query(domain, [server])
                 else:
                     # Single step query to specific server
                     single_step_query(domain, server)
