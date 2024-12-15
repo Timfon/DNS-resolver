@@ -46,7 +46,7 @@ def get_next_nameservers(response):
         return [str(rr) for rrset in response.additional for rr in rrset if rr.rdtype == dns.rdatatype.A]
     
     if response.authority:
-        names = [str(rr.target) for rrset in response.authority for rr in rrset if rr.rdtype == dns.rdatatype.A]
+        names = [str(rr.target) for rrset in response.authority for rr in rrset if rr.rdtype == dns.rdatatype.NS]
         search_ip = []
         for name in names:
             try:
@@ -71,7 +71,7 @@ def single_step_query(domain, server):
         
         if response.answer:
             print("\nAnswer section:")
-            cache_answer(query, response.answer)
+            cache_answer(domain, response.answer)
             for rrset in response.answer:
                 print(rrset)
             
@@ -86,7 +86,7 @@ def single_step_query(domain, server):
             for rrset in response.additional:
                 print(rrset)
                 
-        return response
+        return
         
     except Exception as e:
         print(f"Error querying {server}: {e}")
@@ -101,12 +101,12 @@ def full_iterative_query(domain, start_servers = ROOT_SERVERS):
     step = 1
 
     cache_check = check_cache(domain)
-
+    
     if cache_check:
         print("Got cached answer:")
         for rrset in cache_check:
             for rr in rrset:
-                print(rrset.name, " ", int(rrset.ttl - (time.time() - domain_cache[domain].time))," IN A ", rr.address)
+                print(rrset.name, int(rrset.ttl - (time.time() - domain_cache[domain].time)),"IN", dns.rdatatype.to_text(rr.rdtype) , rr.address)
         return
     
     while True:
@@ -157,7 +157,7 @@ def recursive_query(domain, servers):
         print("Got cached answer:")
         for rrset in cache_check:
             for rr in rrset:
-                print(rrset.name, " ", int(rrset.ttl - (time.time() - domain_cache[domain].time))," IN A ", rr.address)
+                print(rrset.name, int(rrset.ttl - (time.time() - domain_cache[domain].time)),"IN", dns.rdatatype.to_text(rr.rdtype) , rr.address)
         return
     for server in servers:
         print(f"Recursively querying {server} for {domain}")
